@@ -65,3 +65,131 @@ where ean is not null
 select * from stg.order_line_sale
 where fecha between to_date('01-OCT-2022','DD-MON-YY') and to_date('10-NOV-2022','DD-MON-YY')
 order by fecha
+
+-- CLASE 2
+
+--1 Cuales son los paises donde la empresa tiene tiendas?
+select distinct(pais) from stg.store_master
+
+--2 Cuantos productos por subcategoria tiene disponible para la venta?
+--select * from stg.product_master
+select
+	subcategoria,
+	count(codigo_producto) as cantidad_de_productos
+from
+	stg.product_master
+group by
+	subcategoria
+order by cantidad_de_productos desc
+
+--3 Cuales son las ordenes de venta de Argentina de mayor a $100.000?
+select
+	orden,
+	sum(venta) as sum_venta
+from
+	stg.order_line_sale
+where
+	moneda = 'ARS'
+group by
+	orden
+having
+	sum(venta) >= 100000
+order by
+	sum_venta desc
+
+--4 Obtener los decuentos otorgados durante Noviembre de 2022 en cada una de las monedas?
+select
+	sum(descuento) as total_descuento,
+	moneda
+from
+	stg.order_line_sale
+where
+	fecha
+		between to_date('01-NOV-2022','DD-MON-YY')
+			and to_date('30-NOV-2022','DD-MON-YY')
+group by
+	moneda
+/*
+faltaría reemplazar el null en EUR por 0
+select
+	moneda,
+	coalesce (descuento,0) as descuento
+from stg.order_line_sale
+*/
+
+--5 Obtener los impuestos pagados en Europa durante el 2022.
+select
+	sum(impuestos) as impuestos_EUR_2022,
+	moneda
+from
+	stg.order_line_sale
+where
+	moneda = 'EUR'
+	and fecha
+		between to_date('01-JAN-2022','DD-MON-YY')
+			and to_date('31-DEC-2022','DD-MON-YY')
+group by
+	moneda
+
+--6 En cuantas ordenes se utilizaron creditos?
+select
+	count(distinct orden) as ordenes_sin_credito
+from
+	stg.order_line_sale
+where
+	creditos is not null
+--7 Cual es el % de descuentos otorgados (sobre las ventas) por tienda?
+select
+	tienda,
+-- 	sum(descuento) as descuentos,
+-- 	sum(venta) as ventas,
+	-sum(descuento) / sum(venta) * 100 as porcentaje_descuento
+from
+	stg.order_line_sale
+group by
+	tienda
+
+--8 Cual es el inventario promedio por dia que tiene cada tienda?
+select
+	fecha,
+	tienda,
+	avg((inicial + final) / 2) as inventario_promedio
+from
+	stg.inventory
+group by
+	fecha, tienda
+order by
+	fecha, tienda
+
+--9 Obtener las ventas netas y el porcentaje de descuento otorgado por producto en Argentina.
+select
+	producto,
+	sum(venta) as ventas,
+	sum(descuento) as descuentos,
+	-sum(descuento) / sum(venta) * 100 as porcentaje_descuento
+from
+	stg.order_line_sale
+where
+	moneda = 'ARS'
+group by
+	producto
+order by
+	producto
+	
+--10 Las tablas "market_count" y "super_store_count" representan dos sistemas distintos que usa la empresa para contar la cantidad de gente que ingresa a tienda, uno para las tiendas de Latinoamerica y otro para Europa. Obtener en una unica tabla, las entradas a tienda de ambos sistemas.
+select tienda, cast(fecha as varchar(10)) as fecha,conteo from stg.market_count
+union all
+select tienda, cast(fecha as varchar(10)) as fecha, conteo from stg.super_store_count
+
+--11 Cuales son los productos disponibles para la venta (activos) de la marca Phillips?
+select
+	*
+from
+	stg.product_master
+where
+	is_active = true
+	and LOWER(nombre) LIKE '%philips%'
+
+--12 Obtener el monto vendido por tienda y moneda y ordenarlo de mayor a menor por valor nominal.
+--13 Cual es el precio promedio de venta de cada producto en las distintas monedas? Recorda que los valores de venta, impuesto, descuentos y creditos es por el total de la linea.
+--14 Cual es la tasa de impuestos que se pago por cada orden de venta?
