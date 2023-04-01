@@ -73,13 +73,17 @@ select distinct(pais) from stg.store_master
 
 --2 Cuantos productos por subcategoria tiene disponible para la venta?
 --select * from stg.product_master
+
 select
 	subcategoria,
 	count(codigo_producto) as cantidad_de_productos
+
 from
 	stg.product_master
+	
 group by
 	subcategoria
+
 order by cantidad_de_productos desc
 
 --3 Cuales son las ordenes de venta de Argentina de mayor a $100.000?
@@ -188,8 +192,46 @@ from
 	stg.product_master
 where
 	is_active = true
-	and LOWER(nombre) LIKE '%philips%'
+	and lower(nombre) like '%philips%'
 
 --12 Obtener el monto vendido por tienda y moneda y ordenarlo de mayor a menor por valor nominal.
+select
+	tienda,
+	sum(venta) as ventas,
+	moneda
+from
+	stg.order_line_sale
+group by
+	tienda,
+	moneda
+order by
+	ventas desc
+
 --13 Cual es el precio promedio de venta de cada producto en las distintas monedas? Recorda que los valores de venta, impuesto, descuentos y creditos es por el total de la linea.
+select
+	producto,
+	sum(venta)/sum(cantidad) as precio_promedio,
+	moneda
+from
+	stg.order_line_sale
+group by
+	producto,
+	moneda
+order by
+	producto,
+	moneda
+
 --14 Cual es la tasa de impuestos que se pago por cada orden de venta?
+select
+	orden,
+	sum(venta),
+	sum(impuestos),
+	moneda,
+	sum(impuestos)/sum(venta)*100 as tasa_impuestos
+from
+	stg.order_line_sale
+group by
+	orden,
+	moneda
+order by
+	orden
