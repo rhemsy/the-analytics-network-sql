@@ -103,7 +103,7 @@ order by
 
 --4 Obtener los decuentos otorgados durante Noviembre de 2022 en cada una de las monedas?
 select
-	sum(descuento) as total_descuento,
+	sum(coalesce(descuento,0)) as total_descuento,
 	moneda
 from
 	stg.order_line_sale
@@ -113,13 +113,6 @@ where
 			and to_date('30-NOV-2022','DD-MON-YY')
 group by
 	moneda
-/*
-faltaría reemplazar el null en EUR por 0
-select
-	moneda,
-	coalesce (descuento,0) as descuento
-from stg.order_line_sale
-*/
 
 --5 Obtener los impuestos pagados en Europa durante el 2022.
 select
@@ -235,3 +228,96 @@ group by
 	moneda
 order by
 	orden
+
+-- CLASE 3
+
+--1 Mostrar nombre y codigo de producto, categoria y color para todos los productos de la marca Philips y Samsung, mostrando la leyenda "Unknown" cuando no hay un color disponible
+select
+	nombre,
+	codigo_producto,
+	categoria,
+	coalesce(color,'Unknown')
+from
+	stg.product_master
+where
+	lower(nombre) like '%philips%'
+	or lower(nombre) like '%samsung%'
+--2 Calcular las ventas brutas y los impuestos pagados por pais y provincia en la moneda correspondiente.
+select
+	sum(venta) as total_ventas,
+	sum(impuestos) as total_impuestos,
+	moneda,
+	pais,
+	provincia
+from
+	stg.order_line_sale as ols
+left join
+	stg.store_master as ss
+on
+	ols.tienda = ss.codigo_tienda
+group by
+	pais,
+	provincia,
+	moneda
+	
+--3 Calcular las ventas totales por subcategoria de producto para cada moneda ordenados por subcategoria y moneda.
+select
+	subcategoria,
+	sum(venta) as ventas,
+	moneda
+from
+	stg.order_line_sale as ols
+left join
+	stg.product_master as pm
+on
+	ols.producto = pm.codigo_producto
+group by
+	subcategoria,
+	moneda
+order by
+	subcategoria,
+	moneda
+	
+--4 Calcular las unidades vendidas por subcategoria de producto y la concatenacion de pais, provincia; usar guion como separador y usarla para ordernar el resultado.
+select
+	subcategoria,
+	sum(cantidad) as unidades_vendidas,
+	concat(pais,' - ',provincia) as location
+from
+	stg.order_line_sale as ols
+left join
+	stg.product_master as pm
+on
+	ols.producto = pm.codigo_producto
+left join
+	stg.store_master as ss
+on
+	ols.tienda = ss.codigo_tienda
+group by
+	subcategoria,
+	concat(pais,' - ',provincia)
+order by
+	concat(pais,' - ',provincia),
+	sum(cantidad) desc
+
+--5 Mostrar una vista donde sea vea el nombre de tienda y la cantidad de entradas de personas que hubo desde la fecha de apertura para el sistema "super_store".
+select
+	codigo_tienda,
+	coalesce(sum(conteo),0) as total_entradas
+from
+	stg.store_master as sm
+left join
+	stg.super_store_count as ssc
+on
+	sm.codigo_tienda = ssc.tienda
+group by
+	codigo_tienda
+order by
+	total_entradas desc
+	
+--6 Cual es el nivel de inventario promedio en cada mes a nivel de codigo de producto y tienda; mostrar el resultado con el nombre de la tienda.
+--7 Calcular la cantidad de unidades vendidas por material. Para los productos que no tengan material usar 'Unknown', homogeneizar los textos si es necesario.
+--8 Mostrar la tabla order_line_sales agregando una columna que represente el valor de venta bruta en cada linea convertido a dolares usando la tabla de tipo de cambio.
+--9 Calcular cantidad de ventas totales de la empresa en dolares.
+--10 Mostrar en la tabla de ventas el margen de venta por cada linea. Siendo margen = (venta - promociones) - costo expresado en dolares.
+--11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
