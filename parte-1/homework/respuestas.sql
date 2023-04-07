@@ -316,8 +316,95 @@ order by
 	total_entradas desc
 	
 --6 Cual es el nivel de inventario promedio en cada mes a nivel de codigo de producto y tienda; mostrar el resultado con el nombre de la tienda.
+select
+	sm.nombre as nombre_tienda,
+	extract(month from inv.fecha) as mes,
+	inv.sku,
+	round(avg(
+			( coalesce(inv.inicial,0) + coalesce(inv.final,0) ) /2 
+			)
+		,2) as inventario_promedio
+from
+	stg.inventory as inv
+left join
+	stg.store_master as sm
+on
+	inv.tienda = sm.codigo_tienda
+group by
+	mes, -- existe información de sólo 1 mes
+	sku,
+	nombre_tienda
+order by
+	sku,
+	inventario_promedio desc
+	
 --7 Calcular la cantidad de unidades vendidas por material. Para los productos que no tengan material usar 'Unknown', homogeneizar los textos si es necesario.
+select
+	coalesce(lower(pm.material),'Unknown') as tipo_material,
+	sum(ol.cantidad) as cantidad_vendida
+from
+	stg.order_line_sale as ol
+left join
+	stg.product_master as pm
+on
+	ol.producto = pm.codigo_producto
+group by
+	tipo_material
+
 --8 Mostrar la tabla order_line_sales agregando una columna que represente el valor de venta bruta en cada linea convertido a dolares usando la tabla de tipo de cambio.
+select
+	ols.*,
+case
+	when moneda = 'ARS' then round(venta/cotizacion_usd_peso,2)
+	when moneda = 'EUR' then round(venta/cotizacion_usd_eur,2)
+	when moneda = 'URU' then round(venta/cotizacion_usd_uru,2)
+	end as venta_usd_conv
+from
+	stg.order_line_sale as ols
+left join
+	stg.monthly_average_fx_rate as mafr
+on
+	extract(month from ols.fecha) = extract(month from mafr.mes)
+
 --9 Calcular cantidad de ventas totales de la empresa en dolares.
+select
+	sum(case
+			when moneda = 'ARS' then round(venta/cotizacion_usd_peso,2)
+			when moneda = 'EUR' then round(venta/cotizacion_usd_eur,2)
+			when moneda = 'URU' then round(venta/cotizacion_usd_uru,2)
+			end
+		) as venta_usd_conv
+from
+	stg.order_line_sale as ols
+left join
+	stg.monthly_average_fx_rate as mafr
+on
+	extract(month from ols.fecha) = extract(month from mafr.mes)
+
 --10 Mostrar en la tabla de ventas el margen de venta por cada linea. Siendo margen = (venta - promociones) - costo expresado en dolares.
+select
+	ols.*,
+	case
+		when moneda = 'ARS' then round( (ols.venta + coalesce(ols.descuento,0) )/cotizacion_usd_peso,2)
+		when moneda = 'EUR' then round( (ols.venta + coalesce(ols.descuento,0) )/cotizacion_usd_eur,2)
+		when moneda = 'URU' then round( (ols.venta + coalesce(ols.descuento,0) )/cotizacion_usd_uru,2)
+		end as margen_usd_conv
+from
+	stg.order_line_sale as ols
+left join
+	stg.monthly_average_fx_rate as mafr
+on
+	extract(month from ols.fecha) = extract(month from mafr.mes)
+
 --11 Calcular la cantidad de items distintos de cada subsubcategoria que se llevan por numero de orden.
+select
+	ols.orden,
+	count(distinct pm.subcategoria) as cant_items_x_subcategoria
+from
+	stg.order_line_sale as ols
+left join
+	stg.product_master as pm
+on
+	ols.producto = pm.codigo_producto
+group by
+	ols.orden
