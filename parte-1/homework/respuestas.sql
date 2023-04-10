@@ -242,6 +242,7 @@ from
 where
 	lower(nombre) like '%philips%'
 	or lower(nombre) like '%samsung%'
+	
 --2 Calcular las ventas brutas y los impuestos pagados por pais y provincia en la moneda correspondiente.
 select
 	sum(venta) as total_ventas,
@@ -408,3 +409,175 @@ on
 	ols.producto = pm.codigo_producto
 group by
 	ols.orden
+
+-- CLASE 4
+
+--1 Crear un backup de la tabla product_master. Utilizar un esquema llamada "bkp" y agregar un prefijo al nombre de la tabla con la fecha del backup en forma de numero entero.
+CREATE SCHEMA IF NOT EXISTS bkp
+
+select
+	*
+into
+	bkp.backup_20230408
+from
+	stg.product_master
+--2 Hacer un update a la nueva tabla (creada en el punto anterior) de product_master agregando la leyendo "N/A" para los valores null de material y color. Pueden utilizarse dos sentencias.
+update
+	bkp.backup_20230408
+set
+	material = 'N/A' where material is null;
+
+update
+	bkp.backup_20230408
+set
+	color = 'N/A' where color is null
+	
+--3 Hacer un update a la tabla del punto anterior, actualizando la columa "is_active", desactivando todos los productos en la subsubcategoria "Control Remoto".
+update
+	bkp.backup_20230408
+set
+	is_active = false
+where
+	subsubcategoria = 'Control remoto'
+
+--4 Agregar una nueva columna a la tabla anterior llamada "is_local" indicando los productos producidos en Argentina y fuera de Argentina.
+alter table
+	bkp.backup_20230408
+add column
+	is_local boolean default false;
+	
+update
+	bkp.backup_20230408
+set
+	is_local = (origen = 'Argentina');
+
+--5 Agregar una nueva columna a la tabla de ventas llamada "line_key" que resulte ser la concatenacion de el numero de orden y el codigo de producto.
+select * into bkp.copy_ols from stg.order_line_sale;
+
+alter table
+	bkp.copy_ols
+add column
+	line_key varchar(255);
+
+update
+	bkp.copy_ols
+set
+	line_key = concat(orden, '-', producto);
+	
+--6 Eliminar todos los valores de la tabla "order_line_sale" para el POS 1.
+delete from
+	bkp.copy_ols
+where
+	pos = 1
+
+--7 Crear una tabla llamada "employees" (por el momento vacia) que tenga
+-- un id (creado de forma incremental),
+-- nombre,
+-- apellido,
+-- fecha de entrada, fecha salida,
+-- telefono, pais, provincia,
+-- codigo_tienda, posicion.
+-- Decidir cual es el tipo de dato mas acorde.
+DROP TABLE IF EXISTS bkp.employees ;
+    
+CREATE TABLE bkp.employees
+                 (
+							id_employee		SERIAL PRIMARY KEY,
+							nombre			VARCHAR(255) NOT NULL,
+							apellido		VARCHAR(255) NOT NULL,
+							fecha_entrada	date,
+							fecha_salida	date null,
+							telefono		VARCHAR(255) null,
+							pais			VARCHAR(255) null,
+							provincia		VARCHAR(255) null,
+							codigo_tienda	int null,
+							posicion		VARCHAR(255) null
+				 );
+--8 Insertar nuevos valores a la tabla "employees" para los siguientes 4 empleados:
+-- Juan Perez, 2022-01-01, telefono +541113869867, Argentina, Santa Fe, tienda 2, Vendedor.
+insert into
+	bkp.employees (nombre, apellido, fecha_entrada, telefono, pais, provincia, codigo_tienda, posicion)
+values
+	(
+		'Juan',
+		'Perez',
+		'2022-01-01',
+		'+541113869867',
+		'Argentina',
+		'Santa Fe',
+		2,
+		'Vendedor'
+	)
+-- Catalina Garcia, 2022-03-01, Argentina, Buenos Aires, tienda 2, Representante Comercial
+insert into
+	bkp.employees (nombre, apellido, fecha_entrada, pais, provincia, codigo_tienda, posicion)
+values
+	(
+		'Catalina',
+		'Garcia',
+		'2022-03-01',
+		'Argentina',
+		'Buenos Aires',
+		2,
+		'Representante Comercial'
+	)
+-- Ana Valdez, desde 2020-02-21 hasta 2022-03-01, España, Madrid, tienda 8, Jefe Logistica
+insert into
+	bkp.employees (nombre, apellido, fecha_entrada, fecha_salida, pais, provincia, codigo_tienda, posicion)
+values
+	(
+		'Ana',
+		'Valdez',
+		'2020-02-21',
+		'2022-03-01',
+		'España',
+		'Madrid',
+		8,
+		'Jefe Logistica'
+	)
+-- Fernando Moralez, 2022-04-04, España, Valencia, tienda 9, Vendedor.
+insert into
+	bkp.employees (nombre, apellido, fecha_entrada, pais, provincia, codigo_tienda, posicion)
+values
+	(
+		'Fernando',
+		'Moralez',
+		'2022-04-04',
+		'España',
+		'Valencia',
+		9,
+		'Vendedor'
+	)
+--9 Crear un backup de la tabla "cost" agregandole una columna que se llame "last_updated_ts" que sea el momento exacto en el cual estemos realizando el backup en formato datetime.
+select
+	*,
+	CURRENT_TIMESTAMP AS last_updated_ts
+into
+	bkp.copy_cost
+from
+	stg.cost
+
+--10 El cambio en la tabla "order_line_sale" en el punto 6 fue un error y debemos volver la tabla a su estado original, como lo harias?
+/*
+Fui precabido y siempre trabajé sobre copias del original. Pero de pasó investigüé un poco con el amigo chatgpt
+
+Si no tienes una tabla de respaldo de la tabla "order_line_sale", una opción es utilizar una transacción de base de datos para deshacer la eliminación de los datos. Esto requiere que la base de datos esté configurada para admitir transacciones.
+
+Una transacción de base de datos es una serie de operaciones que se ejecutan como una unidad lógica e indivisible, lo que significa que todas las operaciones se completan con éxito o ninguna de ellas se completa. Puedes utilizar una transacción para deshacer la eliminación de datos que realizaste en el punto 6.
+
+Para hacer esto, puedes utilizar la sentencia SQL "BEGIN" para iniciar la transacción, seguida de la sentencia SQL "ROLLBACK" para deshacer la eliminación de datos, y finalmente la sentencia SQL "COMMIT" para finalizar la transacción.
+
+La transacción de base de datos se vería así:
+
+sql
+Copy code
+BEGIN;
+	INSERT INTO bkp.copy_ols (id_order, id_product, quantity, price, pos, sale_date)
+	SELECT id_order, id_product, quantity, price, pos, sale_date
+	FROM order_line_sale
+	WHERE pos = 1;
+ROLLBACK;
+La sentencia SQL "BEGIN" inicia la transacción, y a continuación, la sentencia SQL "INSERT INTO ... SELECT" inserta en la tabla "bkp.copy_ols" los datos que se eliminaron de la tabla "order_line_sale" en el punto 6. Luego, la sentencia SQL "ROLLBACK" deshace la eliminación de datos y finalmente, la sentencia SQL "COMMIT" confirmaría la transacción, pero en este caso no es necesario porque estamos deshaciendo los cambios.
+
+Es importante tener en cuenta que esta transacción deshará cualquier otro cambio que se haya realizado en la tabla "order_line_sale" desde el momento en que se eliminaron los datos hasta el momento en que se ejecute la transacción. Por lo tanto, debes tener cuidado al utilizar esta opción.
+*/
